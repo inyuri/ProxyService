@@ -1,16 +1,15 @@
 package main
 
 import (
-	"ProxyService2/internal/access"
-	adminapp "ProxyService2/internal/application/admin"
-	proxyapp "ProxyService2/internal/application/proxy"
-	"ProxyService2/internal/cache"
 	"ProxyService2/internal/config"
-	httpapi "ProxyService2/internal/httpapi"
+	infaccess "ProxyService2/internal/infrastructure/access"
+	infcache "ProxyService2/internal/infrastructure/cache"
+	infobs "ProxyService2/internal/infrastructure/observability"
+	infratelimit "ProxyService2/internal/infrastructure/ratelimit"
 	"ProxyService2/internal/logger"
-	"ProxyService2/internal/observability"
-	"ProxyService2/internal/rate_limit"
-	"ProxyService2/internal/runtimeconfig"
+	adminservice "ProxyService2/internal/service/admin"
+	proxyservice "ProxyService2/internal/service/proxy"
+	"ProxyService2/internal/transport"
 	"context"
 	"errors"
 	"net/http"
@@ -42,19 +41,19 @@ func main() {
 	}
 	defer asyncLogger.Close()
 
-	accessService := access.NewAccessService()
-	rateLimiter := rate_limit.NewRateLimiter()
-	cacheService := cache.NewCacheService()
-	metrics := observability.NewObservability(runtimeconfig.ObservabilitySettingsFromConfig(store.Current()))
+	accessService := infaccess.NewAccessService()
+	rateLimiter := infratelimit.NewRateLimiter()
+	cacheService := infcache.NewCacheService()
+	metrics := infobs.NewObservability(config.ObservabilitySettingsFromConfig(store.Current()))
 
 	applyRuntimeConfig := func(cfg config.Config) {
 		asyncLogger.SetLevel(cfg.Logging.Level)
-		metrics.UpdateSettings(runtimeconfig.ObservabilitySettingsFromConfig(cfg))
-		if err := accessService.ApplyConfig(runtimeconfig.AccessSettingsFromConfig(cfg)); err != nil {
+		metrics.UpdateSettings(config.ObservabilitySettingsFromConfig(cfg))
+		if err := accessService.ApplyConfig(config.AccessSettingsFromConfig(cfg)); err != nil {
 			asyncLogger.Error("failed to apply access configuration", map[string]any{"error": err.Error()})
 		}
-		rateLimiter.UpdateSettings(runtimeconfig.RateLimitSettingsFromConfig(cfg))
-		cacheService.UpdateSettings(runtimeconfig.CacheSettingsFromConfig(cfg))
+		rateLimiter.UpdateSettings(config.RateLimitSettingsFromConfig(cfg))
+		cacheService.UpdateSettings(config.CacheSettingsFromConfig(cfg))
 	}
 
 	applyRuntimeConfig(store.Current())
@@ -67,9 +66,9 @@ func main() {
 		asyncLogger.Error("failed to watch config file", map[string]any{"error": err.Error()})
 	}
 
-	adminService := adminapp.NewService(store, accessService, rateLimiter, cacheService, metrics)
-	proxyService := proxyapp.NewService(store, accessService, rateLimiter, cacheService, metrics, &http.Client{})
-	httpAPI := httpapi.NewServer(store, adminService, proxyService, metrics, asyncLogger)
+	adminSvc := adminservice.NewService(store, accessService, rateLimiter, cacheService, metrics)
+	proxySvc := proxyservice.NewService(store, accessService, rateLimiter, cacheService, metrics, &http.Client{})
+	httpAPI := transport.NewServer(store, adminSvc, proxySvc, metrics, asyncLogger)
 	httpAPI.StartBackgroundWorkers(ctx)
 
 	cfg := store.Current()
