@@ -1,0 +1,732 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "title": "Proxy Service API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/api/v1/access/check": {
+            "get": {
+                "tags": [
+                    "access"
+                ],
+                "summary": "Check IP access",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "IP address to evaluate. Defaults to the caller IP when omitted",
+                        "name": "ip",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Captcha token for greylist verification",
+                        "name": "captcha",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.AccessDecision"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/access/rules": {
+            "get": {
+                "tags": [
+                    "access"
+                ],
+                "summary": "List IP access rules",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/httpapi.accessRuleView"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "access"
+                ],
+                "summary": "Create IP access rule",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.accessRuleView"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/access/rules/{id}": {
+            "delete": {
+                "tags": [
+                    "access"
+                ],
+                "summary": "Delete IP access rule",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/api/v1/cache": {
+            "get": {
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Cache snapshot",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.CacheSnapshot"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Clear cache",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cache/invalidate": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "cache"
+                ],
+                "summary": "Invalidate cache",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/dashboard/overview": {
+            "get": {
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "Dashboard overview",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.DashboardOverview"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/logs": {
+            "get": {
+                "tags": [
+                    "logs"
+                ],
+                "summary": "Recent logs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.logsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/logs/export": {
+            "get": {
+                "tags": [
+                    "logs"
+                ],
+                "summary": "Export logs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/monitoring": {
+            "get": {
+                "tags": [
+                    "monitoring"
+                ],
+                "summary": "Monitoring data",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.MonitoringSnapshot"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rate-limits": {
+            "get": {
+                "tags": [
+                    "rate-limit"
+                ],
+                "summary": "Get rate limit configuration and violations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.rateLimitResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rate-limit"
+                ],
+                "summary": "Update rate limit configuration",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/core.RateLimitSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rate-limits/violations": {
+            "get": {
+                "tags": [
+                    "rate-limit"
+                ],
+                "summary": "Recent rate limit violations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/core.RateLimitViolation"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "tags": [
+                    "system"
+                ],
+                "summary": "Liveness probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "core.AccessDecision": {
+            "type": "object",
+            "properties": {
+                "allowed": {
+                    "type": "boolean"
+                },
+                "matchedValue": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "requiresCaptcha": {
+                    "type": "boolean"
+                },
+                "ruleId": {
+                    "type": "string"
+                },
+                "ruleType": {
+                    "$ref": "#/definitions/core.AccessRuleType"
+                }
+            }
+        },
+        "core.AccessRuleType": {
+            "type": "string",
+            "enum": [
+                "allow",
+                "deny",
+                "grey"
+            ],
+            "x-enum-varnames": [
+                "AccessRuleAllow",
+                "AccessRuleDeny",
+                "AccessRuleGrey"
+            ]
+        },
+        "core.CacheEntryView": {
+            "type": "object",
+            "properties": {
+                "expiresAt": {
+                    "type": "string"
+                },
+                "hits": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "sizeHuman": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ttl": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.CacheSnapshot": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.CacheEntryView"
+                    }
+                },
+                "settings": {
+                    "$ref": "#/definitions/core.CacheSnapshotSettings"
+                },
+                "stats": {
+                    "$ref": "#/definitions/core.CacheStats"
+                }
+            }
+        },
+        "core.CacheSnapshotSettings": {
+            "type": "object",
+            "properties": {
+                "capacity": {
+                    "type": "integer"
+                },
+                "default2xxTtl": {
+                    "type": "string"
+                },
+                "default3xxTtl": {
+                    "type": "string"
+                },
+                "default4xxTtl": {
+                    "type": "string"
+                },
+                "default5xxTtl": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "memoryLimitText": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.CacheStats": {
+            "type": "object",
+            "properties": {
+                "hitRate": {
+                    "type": "number"
+                },
+                "hits": {
+                    "type": "integer"
+                },
+                "memoryLimit": {
+                    "type": "integer"
+                },
+                "memoryLimitUI": {
+                    "type": "string"
+                },
+                "memoryUsed": {
+                    "type": "integer"
+                },
+                "memoryUsedUI": {
+                    "type": "string"
+                },
+                "misses": {
+                    "type": "integer"
+                },
+                "totalKeys": {
+                    "type": "integer"
+                }
+            }
+        },
+        "core.DashboardOverview": {
+            "type": "object",
+            "properties": {
+                "activeConnections": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "integer"
+                },
+                "latencyData": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.LatencyPoint"
+                    }
+                },
+                "rps": {
+                    "type": "integer"
+                },
+                "rpsData": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.RPSPoint"
+                    }
+                },
+                "traffic": {
+                    "type": "string"
+                },
+                "upstreams": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.UpstreamStatus"
+                    }
+                }
+            }
+        },
+        "core.ErrorPoint": {
+            "type": "object",
+            "properties": {
+                "4xx": {
+                    "type": "integer"
+                },
+                "5xx": {
+                    "type": "integer"
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.LatencyPoint": {
+            "type": "object",
+            "properties": {
+                "p50": {
+                    "type": "integer"
+                },
+                "p95": {
+                    "type": "integer"
+                },
+                "p99": {
+                    "type": "integer"
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.MonitoringSnapshot": {
+            "type": "object",
+            "properties": {
+                "errorData": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.ErrorPoint"
+                    }
+                },
+                "topClients": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.TopClient"
+                    }
+                },
+                "trafficData": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.TrafficPoint"
+                    }
+                },
+                "upstreams": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.UpstreamStatus"
+                    }
+                }
+            }
+        },
+        "core.RPSPoint": {
+            "type": "object",
+            "properties": {
+                "time": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "integer"
+                }
+            }
+        },
+        "core.RateLimitSettings": {
+            "type": "object",
+            "properties": {
+                "concurrentConnections": {
+                    "type": "integer"
+                },
+                "connectionsPerSecond": {
+                    "type": "integer"
+                },
+                "downloadBytesPerSecond": {
+                    "type": "integer"
+                },
+                "rpd": {
+                    "type": "integer"
+                },
+                "rph": {
+                    "type": "integer"
+                },
+                "rpm": {
+                    "type": "integer"
+                },
+                "rps": {
+                    "type": "integer"
+                },
+                "subnetIPv4Mask": {
+                    "type": "integer"
+                },
+                "subnetIPv6Mask": {
+                    "type": "integer"
+                },
+                "totalBytesPerDay": {
+                    "type": "integer"
+                },
+                "uploadBytesPerSecond": {
+                    "type": "integer"
+                }
+            }
+        },
+        "core.RateLimitViolation": {
+            "type": "object",
+            "properties": {
+                "exceeded": {
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "limit": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.RequestLog": {
+            "type": "object",
+            "properties": {
+                "blocked": {
+                    "type": "boolean"
+                },
+                "cacheStatus": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "latency": {
+                    "type": "integer"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.TopClient": {
+            "type": "object",
+            "properties": {
+                "bandwidth": {
+                    "type": "string"
+                },
+                "bandwidthBytes": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "requests": {
+                    "type": "integer"
+                }
+            }
+        },
+        "core.TrafficPoint": {
+            "type": "object",
+            "properties": {
+                "bandwidth": {
+                    "type": "integer"
+                },
+                "requests": {
+                    "type": "integer"
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.UpstreamStatus": {
+            "type": "object",
+            "properties": {
+                "checkedAt": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "integer"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "latencyMs": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpapi.accessRuleView": {
+            "type": "object",
+            "properties": {
+                "addedDate": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "httpapi.logsResponse": {
+            "type": "object",
+            "properties": {
+                "blockedCount": {
+                    "type": "integer"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.RequestLog"
+                    }
+                }
+            }
+        },
+        "httpapi.rateLimitResponse": {
+            "type": "object",
+            "properties": {
+                "limits": {
+                    "$ref": "#/definitions/core.RateLimitSettings"
+                },
+                "topClients": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.TopClient"
+                    }
+                },
+                "violations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/core.RateLimitViolation"
+                    }
+                }
+            }
+        }
+    }
+}

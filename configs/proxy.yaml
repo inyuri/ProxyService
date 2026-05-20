@@ -1,0 +1,130 @@
+server:
+    address: :8080
+    readTimeout: 15s
+    writeTimeout: 15s
+    shutdownTimeout: 5s
+proxy:
+    upstreamBaseURL: https://httpbin.org
+    timeout: 15s
+frontend:
+    allowedOrigins:
+        - http://localhost:5173
+        - http://localhost:5174
+        - http://127.0.0.1:5173
+        - http://localhost:4173
+logging:
+    level: info
+monitoring:
+    historyBuckets: 60
+    logBufferSize: 500
+    upstreamCheckInterval: 30s
+access:
+    defaultPolicy: allow
+    captchaHeader: X-Captcha-Token
+    captchaToken: let-me-in
+    decisionCacheTTL: 2m
+    decisionCacheSize: 2048
+    rules:
+        - id: local-dev
+          type: allow
+          value: 127.0.0.1/32
+          description: Local development
+          createdAt: 2026-05-07T00:00:00Z
+        - id: office-range
+          type: allow
+          value: 10.0.0.0/24
+          description: Office subnet
+          createdAt: 2026-05-07T00:00:00Z
+        - id: blocked-range
+          type: deny
+          value: 203.0.113.0/24
+          description: Blocked test network
+          createdAt: 2026-05-07T00:00:00Z
+        - id: captcha-test
+          type: grey
+          value: 172.16.0.50
+          description: Needs CAPTCHA verification
+          createdAt: 2026-05-07T00:00:00Z
+        - id: e33955a7-6e3e-4e0b-b436-fb4d5c7708c1
+          type: allow
+          value: 10.0.0.5
+          description: ""
+          createdAt: 2026-05-13T17:03:45.941Z
+        - id: b979345a-02ef-422c-b460-706de50245ff
+          type: deny
+          value: 23.16.1.10
+          description: ""
+          createdAt: 2026-05-13T17:46:59.441179Z
+        - id: 58a4c7af-5560-4616-85fe-80f507083110
+          type: allow
+          value: 1.1.1.1
+          description: ""
+          createdAt: 2026-05-14T07:37:26.880107Z
+        - id: 8cc889db-6a2d-493b-96c1-8effec0b5986
+          type: allow
+          value: 2.2.2.2
+          description: ""
+          createdAt: 2026-05-14T07:59:31.80981Z
+        - id: 354ba1e3-50c2-463b-b99a-b484cc0bd52b
+          type: allow
+          value: 8.8.8.8
+          description: ""
+          createdAt: 2026-05-20T02:55:31.999183Z
+rateLimit:
+    subnetIPv4Mask: 24
+    subnetIPv6Mask: 64
+    limits:
+        rps: 1000
+        rpm: 1000
+        rph: 2000000
+        rpd: 20000000
+        concurrentConnections: 200
+        connectionsPerSecond: 200
+        uploadBytesPerSecond: 10485760
+        downloadBytesPerSecond: 20971520
+        totalBytesPerDay: 21474836480
+cache:
+    enabled: true
+    capacity: 512
+    memoryLimitBytes: 134217728
+    defaultRule:
+        name: default
+        domains: []
+        pathPrefixes: []
+        ttl2xx: 5m
+        ttl3xx: 1m
+        ttl4xx: 30s
+        ttl5xx: 15s
+        minSizeBytes: 1
+        maxSizeBytes: 2097152
+        tags: []
+        sensitiveHeaders:
+            - Authorization
+            - Cookie
+    rules:
+        - name: search
+          domains: []
+          pathPrefixes:
+            - /search
+          ttl2xx: 5m
+          ttl3xx: 30s
+          ttl4xx: 10s
+          ttl5xx: 0s
+          minSizeBytes: 1
+          maxSizeBytes: 1048576
+          tags:
+            - search
+          sensitiveHeaders: []
+        - name: movies
+          domains: []
+          pathPrefixes:
+            - /movies
+          ttl2xx: 5m
+          ttl3xx: 1m
+          ttl4xx: 30s
+          ttl5xx: 15s
+          minSizeBytes: 1
+          maxSizeBytes: 4194304
+          tags:
+            - movies
+          sensitiveHeaders: []
