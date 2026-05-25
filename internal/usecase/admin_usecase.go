@@ -1,4 +1,4 @@
-package admin
+package usecase
 
 import (
 	"ProxyService2/internal/config"
@@ -49,7 +49,7 @@ type LogsResponse struct {
 	BlockedCount int                 `json:"blockedCount"`
 }
 
-type Service struct {
+type AdminUseCase struct {
 	store   ports.ConfigStore
 	access  ports.AccessService
 	rate    ports.RateLimiter
@@ -57,14 +57,14 @@ type Service struct {
 	metrics ports.ObservabilityService
 }
 
-func NewService(
+func NewAdminUseCase(
 	store ports.ConfigStore,
 	access ports.AccessService,
 	rate ports.RateLimiter,
 	cache ports.CacheService,
 	metrics ports.ObservabilityService,
-) *Service {
-	return &Service{
+) *AdminUseCase {
+	return &AdminUseCase{
 		store:   store,
 		access:  access,
 		rate:    rate,
@@ -73,13 +73,13 @@ func NewService(
 	}
 }
 
-func (s *Service) DashboardOverview() domain.DashboardOverview {
-	return s.metrics.Overview()
+func (uc *AdminUseCase) DashboardOverview() domain.DashboardOverview {
+	return uc.metrics.Overview()
 }
 
-func (s *Service) ListAccessRules(filterType string) []AccessRuleView {
+func (uc *AdminUseCase) ListAccessRules(filterType string) []AccessRuleView {
 	filterType = strings.ToLower(strings.TrimSpace(filterType))
-	rules := s.access.List()
+	rules := uc.access.List()
 	views := make([]AccessRuleView, 0, len(rules))
 	for _, rule := range rules {
 		if filterType != "" && filterType != string(rule.Type) {
@@ -96,7 +96,7 @@ func (s *Service) ListAccessRules(filterType string) []AccessRuleView {
 	return views
 }
 
-func (s *Service) CreateAccessRule(request AccessRuleRequest) (AccessRuleView, error) {
+func (uc *AdminUseCase) CreateAccessRule(request AccessRuleRequest) (AccessRuleView, error) {
 	rule := domain.AccessRule{
 		ID:          uuid.NewString(),
 		Type:        normalizeRuleType(request.Type),
@@ -108,7 +108,7 @@ func (s *Service) CreateAccessRule(request AccessRuleRequest) (AccessRuleView, e
 		return AccessRuleView{}, err
 	}
 
-	if err := s.store.Update(func(cfg *config.Config) error {
+	if err := uc.store.Update(func(cfg *config.Config) error {
 		cfg.Access.Rules = append(cfg.Access.Rules, config.AccessRuleConfig{
 			ID:          rule.ID,
 			Type:        string(rule.Type),
@@ -130,13 +130,13 @@ func (s *Service) CreateAccessRule(request AccessRuleRequest) (AccessRuleView, e
 	}, nil
 }
 
-func (s *Service) DeleteAccessRule(ruleID string) (bool, error) {
+func (uc *AdminUseCase) DeleteAccessRule(ruleID string) (bool, error) {
 	if ruleID == "" {
 		return false, errors.New("id is required")
 	}
 
 	removed := false
-	err := s.store.Update(func(cfg *config.Config) error {
+	err := uc.store.Update(func(cfg *config.Config) error {
 		filtered := make([]config.AccessRuleConfig, 0, len(cfg.Access.Rules))
 		for _, rule := range cfg.Access.Rules {
 			if rule.ID == ruleID {
@@ -151,23 +151,23 @@ func (s *Service) DeleteAccessRule(ruleID string) (bool, error) {
 	return removed, err
 }
 
-func (s *Service) CheckAccess(ip, captcha, fallbackIP string) domain.AccessDecision {
+func (uc *AdminUseCase) CheckAccess(ip, captcha, fallbackIP string) domain.AccessDecision {
 	if strings.TrimSpace(ip) == "" {
 		ip = fallbackIP
 	}
-	return s.access.Check(ip, captcha)
+	return uc.access.Check(ip, captcha)
 }
 
-func (s *Service) GetRateLimits() RateLimitResponse {
+func (uc *AdminUseCase) GetRateLimits() RateLimitResponse {
 	return RateLimitResponse{
-		Limits:     s.rate.Settings(),
-		TopClients: s.metrics.TopClients(10),
-		Violations: s.rate.TopViolators(50),
+		Limits:     uc.rate.Settings(),
+		TopClients: uc.metrics.TopClients(10),
+		Violations: uc.rate.TopViolators(50),
 	}
 }
 
-func (s *Service) UpdateRateLimits(request RateLimitUpdateRequest) (domain.RateLimitSettings, error) {
-	if err := s.store.Update(func(cfg *config.Config) error {
+func (uc *AdminUseCase) UpdateRateLimits(request RateLimitUpdateRequest) (domain.RateLimitSettings, error) {
+	if err := uc.store.Update(func(cfg *config.Config) error {
 		cfg.RateLimit.Limits.RPS = request.RPS
 		cfg.RateLimit.Limits.RPM = request.RPM
 		cfg.RateLimit.Limits.RPH = request.RPH
@@ -182,31 +182,31 @@ func (s *Service) UpdateRateLimits(request RateLimitUpdateRequest) (domain.RateL
 		return domain.RateLimitSettings{}, err
 	}
 
-	return s.rate.Settings(), nil
+	return uc.rate.Settings(), nil
 }
 
-func (s *Service) RateLimitViolations(limit int) []domain.RateLimitViolation {
-	return s.rate.TopViolators(limit)
+func (uc *AdminUseCase) RateLimitViolations(limit int) []domain.RateLimitViolation {
+	return uc.rate.TopViolators(limit)
 }
 
-func (s *Service) CacheSnapshot(limit int) domain.CacheSnapshot {
-	return s.cache.Snapshot(limit)
+func (uc *AdminUseCase) CacheSnapshot(limit int) domain.CacheSnapshot {
+	return uc.cache.Snapshot(limit)
 }
 
-func (s *Service) InvalidateCache(request domain.CacheInvalidationRequest) (int, error) {
-	return s.cache.Invalidate(request)
+func (uc *AdminUseCase) InvalidateCache(request domain.CacheInvalidationRequest) (int, error) {
+	return uc.cache.Invalidate(request)
 }
 
-func (s *Service) ClearCache() int {
-	return s.cache.InvalidateAll()
+func (uc *AdminUseCase) ClearCache() int {
+	return uc.cache.InvalidateAll()
 }
 
-func (s *Service) Monitoring(topN int) domain.MonitoringSnapshot {
-	return s.metrics.Monitoring(topN)
+func (uc *AdminUseCase) Monitoring(topN int) domain.MonitoringSnapshot {
+	return uc.metrics.Monitoring(topN)
 }
 
-func (s *Service) Logs(ip string, status int, limit int) LogsResponse {
-	items := s.metrics.Logs(ip, status, limit)
+func (uc *AdminUseCase) Logs(ip string, status int, limit int) LogsResponse {
+	items := uc.metrics.Logs(ip, status, limit)
 	blocked := 0
 	for _, item := range items {
 		if item.Blocked {
@@ -216,8 +216,8 @@ func (s *Service) Logs(ip string, status int, limit int) LogsResponse {
 	return LogsResponse{Items: items, BlockedCount: blocked}
 }
 
-func (s *Service) ExportLogs(ip string, status int, limit int) ([]byte, error) {
-	return json.MarshalIndent(s.metrics.Logs(ip, status, limit), "", "  ")
+func (uc *AdminUseCase) ExportLogs(ip string, status int, limit int) ([]byte, error) {
+	return json.MarshalIndent(uc.metrics.Logs(ip, status, limit), "", "  ")
 }
 
 func normalizeRuleType(value string) domain.AccessRuleType {

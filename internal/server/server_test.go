@@ -1,15 +1,11 @@
-package transport
+package server
 
 import (
 	"ProxyService2/internal/config"
 	"ProxyService2/internal/domain"
-	infaccess "ProxyService2/internal/infrastructure/access"
-	infcache "ProxyService2/internal/infrastructure/cache"
-	infobs "ProxyService2/internal/infrastructure/observability"
-	infratelimit "ProxyService2/internal/infrastructure/ratelimit"
-	"ProxyService2/internal/logger"
-	adminservice "ProxyService2/internal/service/admin"
-	proxyservice "ProxyService2/internal/service/proxy"
+	"ProxyService2/internal/repository"
+	"ProxyService2/internal/usecase"
+	"ProxyService2/pkg/logger"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -53,31 +49,31 @@ func TestServerProxyCachesResponses(t *testing.T) {
 	require.NoError(t, err)
 	defer log.Close()
 
-	accessService := infaccess.NewAccessService()
+	accessService := repository.NewAccessService()
 	require.NoError(t, accessService.ApplyConfig(domain.AccessSettings{
 		DefaultPolicy: "allow",
 		CacheTTL:      time.Minute,
 		CacheSize:     64,
 	}))
-	rate := infratelimit.NewRateLimiter()
-	cacheService := infcache.NewCacheService()
-	metrics := infobs.NewObservability(domain.ObservabilitySettings{MaxLogs: 50, MaxBuckets: 10})
-	adminSvc := adminservice.NewService(store, accessService, rate, cacheService, metrics)
-	proxySvc := proxyservice.NewService(store, accessService, rate, cacheService, metrics, upstream.Client())
+	rate := repository.NewRateLimiter()
+	cacheService := repository.NewCacheService()
+	metrics := repository.NewObservability(domain.ObservabilitySettings{MaxLogs: 50, MaxBuckets: 10})
+	adminSvc := usecase.NewAdminUseCase(store, accessService, rate, cacheService, metrics)
+	proxySvc := usecase.NewProxyUseCase(store, accessService, rate, cacheService, metrics, upstream.Client())
 
-	server := NewServer(store, adminSvc, proxySvc, metrics, log)
+	srv := NewServer(store, adminSvc, proxySvc, metrics, log)
 
 	first := httptest.NewRecorder()
 	firstReq := httptest.NewRequest(http.MethodGet, "/proxy/anything/cacheable", nil)
 	firstReq.RemoteAddr = "127.0.0.1:12345"
-	server.Engine().ServeHTTP(first, firstReq)
+	srv.Engine().ServeHTTP(first, firstReq)
 	require.Equal(t, http.StatusOK, first.Code)
 	require.Equal(t, "MISS", first.Header().Get("X-Cache-Status"))
 
 	second := httptest.NewRecorder()
 	secondReq := httptest.NewRequest(http.MethodGet, "/proxy/anything/cacheable", nil)
 	secondReq.RemoteAddr = "127.0.0.1:12345"
-	server.Engine().ServeHTTP(second, secondReq)
+	srv.Engine().ServeHTTP(second, secondReq)
 	require.Equal(t, http.StatusOK, second.Code)
 	require.Equal(t, "HIT", second.Header().Get("X-Cache-Status"))
 	require.Equal(t, int64(1), upstreamCalls.Load())
@@ -100,7 +96,7 @@ func TestServerAccessCheckEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	defer log.Close()
 
-	accessService := infaccess.NewAccessService()
+	accessService := repository.NewAccessService()
 	require.NoError(t, accessService.ApplyConfig(domain.AccessSettings{
 		DefaultPolicy: "deny",
 		CacheTTL:      time.Minute,
@@ -110,16 +106,17 @@ func TestServerAccessCheckEndpoint(t *testing.T) {
 		},
 	}))
 
-	rate := infratelimit.NewRateLimiter()
-	cacheService := infcache.NewCacheService()
-	metrics := infobs.NewObservability(domain.ObservabilitySettings{})
-	adminSvc := adminservice.NewService(store, accessService, rate, cacheService, metrics)
-	proxySvc := proxyservice.NewService(store, accessService, rate, cacheService, metrics, nil)
-	server := NewServer(store, adminSvc, proxySvc, metrics, log)
+	rate := repository.NewRateLimiter()
+	cacheService := repository.NewCacheService()
+	metrics := repository.NewObservability(domain.ObservabilitySettings{})
+	adminSvc := usecase.NewAdminUseCase(store, accessService, rate, cacheService, metrics)
+	proxySvc := usecase.NewProxyUseCase(store, accessService, rate, cacheService, metrics, nil)
+	srv := NewServer(store, adminSvc, proxySvc, metrics, log)
+
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/access/check?ip=127.0.0.1", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	server.Engine().ServeHTTP(recorder, req)
+	srv.Engine().ServeHTTP(recorder, req)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 

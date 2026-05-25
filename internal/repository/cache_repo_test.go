@@ -1,4 +1,4 @@
-package cache
+package repository
 
 import (
 	"ProxyService2/internal/domain"

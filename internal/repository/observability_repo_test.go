@@ -1,4 +1,4 @@
-package observability
+package repository
 
 import (
 	"ProxyService2/internal/domain"

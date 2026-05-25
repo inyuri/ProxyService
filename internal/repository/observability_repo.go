@@ -1,4 +1,4 @@
-package observability
+package repository
 
 import (
 	"ProxyService2/internal/domain"
@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-type Observability struct {
+type ObservabilityService struct {
 	settings    domain.ObservabilitySettings
 	startedAt   time.Time
 	activeConns atomic.Int64
@@ -40,7 +40,7 @@ type metricsBucket struct {
 	latencies  []int64
 }
 
-func NewObservability(settings domain.ObservabilitySettings) *Observability {
+func NewObservability(settings domain.ObservabilitySettings) *ObservabilityService {
 	if settings.MaxLogs <= 0 {
 		settings.MaxLogs = 500
 	}
@@ -48,7 +48,7 @@ func NewObservability(settings domain.ObservabilitySettings) *Observability {
 		settings.MaxBuckets = 60
 	}
 
-	return &Observability{
+	return &ObservabilityService{
 		settings:  settings,
 		startedAt: time.Now(),
 		buckets:   make(map[int64]*metricsBucket),
@@ -57,7 +57,7 @@ func NewObservability(settings domain.ObservabilitySettings) *Observability {
 	}
 }
 
-func (o *Observability) UpdateSettings(settings domain.ObservabilitySettings) {
+func (o *ObservabilityService) UpdateSettings(settings domain.ObservabilitySettings) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if settings.MaxLogs > 0 {
@@ -68,15 +68,15 @@ func (o *Observability) UpdateSettings(settings domain.ObservabilitySettings) {
 	}
 }
 
-func (o *Observability) IncActive() {
+func (o *ObservabilityService) IncActive() {
 	o.activeConns.Add(1)
 }
 
-func (o *Observability) DecActive() {
+func (o *ObservabilityService) DecActive() {
 	o.activeConns.Add(-1)
 }
 
-func (o *Observability) Record(event domain.RequestEvent) {
+func (o *ObservabilityService) Record(event domain.RequestEvent) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
@@ -132,7 +132,7 @@ func (o *Observability) Record(event domain.RequestEvent) {
 	o.trimBuckets()
 }
 
-func (o *Observability) Logs(ip string, status int, limit int) []domain.RequestLog {
+func (o *ObservabilityService) Logs(ip string, status int, limit int) []domain.RequestLog {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
@@ -157,11 +157,11 @@ func (o *Observability) Logs(ip string, status int, limit int) []domain.RequestL
 	return result
 }
 
-func (o *Observability) Overview() domain.DashboardOverview {
+func (o *ObservabilityService) Overview() domain.DashboardOverview {
 	return domain.DashboardOverview{
 		RPS:               o.currentRPS(),
 		ActiveConnections: o.activeConns.Load(),
-		Traffic:           humanBytes(o.totalBytes.Load()),
+		Traffic:           humanBytesObs(o.totalBytes.Load()),
 		Errors:            o.totalErrors.Load(),
 		RPSData:           o.rpsHistory(),
 		LatencyData:       o.latencyHistory(),
@@ -169,7 +169,7 @@ func (o *Observability) Overview() domain.DashboardOverview {
 	}
 }
 
-func (o *Observability) Monitoring(topN int) domain.MonitoringSnapshot {
+func (o *ObservabilityService) Monitoring(topN int) domain.MonitoringSnapshot {
 	return domain.MonitoringSnapshot{
 		TrafficData: o.trafficHistory(),
 		ErrorData:   o.errorHistory(),
@@ -178,7 +178,7 @@ func (o *Observability) Monitoring(topN int) domain.MonitoringSnapshot {
 	}
 }
 
-func (o *Observability) TopClients(limit int) []domain.TopClient {
+func (o *ObservabilityService) TopClients(limit int) []domain.TopClient {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
@@ -211,7 +211,7 @@ func (o *Observability) TopClients(limit int) []domain.TopClient {
 			IP:           item.ip,
 			Requests:     item.stats.requests,
 			Percentage:   float64(item.stats.requests) / float64(total) * 100,
-			Bandwidth:    humanBytes(item.stats.bytes),
+			Bandwidth:    humanBytesObs(item.stats.bytes),
 			BandwidthRaw: item.stats.bytes,
 		})
 		if len(result) >= limit {
@@ -221,13 +221,13 @@ func (o *Observability) TopClients(limit int) []domain.TopClient {
 	return result
 }
 
-func (o *Observability) UpdateUpstreamStatus(status domain.UpstreamStatus) {
+func (o *ObservabilityService) UpdateUpstreamStatus(status domain.UpstreamStatus) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.upstreams[status.Name] = status
 }
 
-func (o *Observability) UpstreamStatuses() []domain.UpstreamStatus {
+func (o *ObservabilityService) UpstreamStatuses() []domain.UpstreamStatus {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
@@ -241,7 +241,7 @@ func (o *Observability) UpstreamStatuses() []domain.UpstreamStatus {
 	return result
 }
 
-func (o *Observability) currentRPS() int64 {
+func (o *ObservabilityService) currentRPS() int64 {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
@@ -252,7 +252,7 @@ func (o *Observability) currentRPS() int64 {
 	return bucket.requests
 }
 
-func (o *Observability) rpsHistory() []domain.RPSPoint {
+func (o *ObservabilityService) rpsHistory() []domain.RPSPoint {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
@@ -268,7 +268,7 @@ func (o *Observability) rpsHistory() []domain.RPSPoint {
 	return points
 }
 
-func (o *Observability) latencyHistory() []domain.LatencyPoint {
+func (o *ObservabilityService) latencyHistory() []domain.LatencyPoint {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
@@ -287,7 +287,7 @@ func (o *Observability) latencyHistory() []domain.LatencyPoint {
 	return points
 }
 
-func (o *Observability) trafficHistory() []domain.TrafficPoint {
+func (o *ObservabilityService) trafficHistory() []domain.TrafficPoint {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
@@ -304,7 +304,7 @@ func (o *Observability) trafficHistory() []domain.TrafficPoint {
 	return points
 }
 
-func (o *Observability) errorHistory() []domain.ErrorPoint {
+func (o *ObservabilityService) errorHistory() []domain.ErrorPoint {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 
@@ -321,7 +321,7 @@ func (o *Observability) errorHistory() []domain.ErrorPoint {
 	return points
 }
 
-func (o *Observability) sortedBucketKeys() []int64 {
+func (o *ObservabilityService) sortedBucketKeys() []int64 {
 	keys := make([]int64, 0, len(o.buckets))
 	for key := range o.buckets {
 		keys = append(keys, key)
@@ -330,7 +330,7 @@ func (o *Observability) sortedBucketKeys() []int64 {
 	return keys
 }
 
-func (o *Observability) trimBuckets() {
+func (o *ObservabilityService) trimBuckets() {
 	if len(o.buckets) <= o.settings.MaxBuckets {
 		return
 	}
@@ -358,7 +358,7 @@ func percentile(values []int64, p float64) int64 {
 	return values[index]
 }
 
-func humanBytes(value int64) string {
+func humanBytesObs(value int64) string {
 	const unit = 1024
 	if value < unit {
 		return strconv.FormatInt(value, 10) + " B"

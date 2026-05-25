@@ -2,14 +2,10 @@ package main
 
 import (
 	"ProxyService2/internal/config"
-	infaccess "ProxyService2/internal/infrastructure/access"
-	infcache "ProxyService2/internal/infrastructure/cache"
-	infobs "ProxyService2/internal/infrastructure/observability"
-	infratelimit "ProxyService2/internal/infrastructure/ratelimit"
-	"ProxyService2/internal/logger"
-	adminservice "ProxyService2/internal/service/admin"
-	proxyservice "ProxyService2/internal/service/proxy"
-	"ProxyService2/internal/transport"
+	"ProxyService2/internal/repository"
+	"ProxyService2/internal/server"
+	"ProxyService2/internal/usecase"
+	"ProxyService2/pkg/logger"
 	"context"
 	"errors"
 	"net/http"
@@ -41,10 +37,10 @@ func main() {
 	}
 	defer asyncLogger.Close()
 
-	accessService := infaccess.NewAccessService()
-	rateLimiter := infratelimit.NewRateLimiter()
-	cacheService := infcache.NewCacheService()
-	metrics := infobs.NewObservability(config.ObservabilitySettingsFromConfig(store.Current()))
+	accessService := repository.NewAccessService()
+	rateLimiter := repository.NewRateLimiter()
+	cacheService := repository.NewCacheService()
+	metrics := repository.NewObservability(config.ObservabilitySettingsFromConfig(store.Current()))
 
 	applyRuntimeConfig := func(cfg config.Config) {
 		asyncLogger.SetLevel(cfg.Logging.Level)
@@ -66,9 +62,9 @@ func main() {
 		asyncLogger.Error("failed to watch config file", map[string]any{"error": err.Error()})
 	}
 
-	adminSvc := adminservice.NewService(store, accessService, rateLimiter, cacheService, metrics)
-	proxySvc := proxyservice.NewService(store, accessService, rateLimiter, cacheService, metrics, &http.Client{})
-	httpAPI := transport.NewServer(store, adminSvc, proxySvc, metrics, asyncLogger)
+	adminSvc := usecase.NewAdminUseCase(store, accessService, rateLimiter, cacheService, metrics)
+	proxySvc := usecase.NewProxyUseCase(store, accessService, rateLimiter, cacheService, metrics, &http.Client{})
+	httpAPI := server.NewServer(store, adminSvc, proxySvc, metrics, asyncLogger)
 	httpAPI.StartBackgroundWorkers(ctx)
 
 	cfg := store.Current()

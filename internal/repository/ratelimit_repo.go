@@ -1,4 +1,4 @@
-package ratelimit
+package repository
 
 import (
 	"ProxyService2/internal/domain"

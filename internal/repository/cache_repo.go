@@ -1,4 +1,4 @@
-package cache
+package repository
 
 import (
 	"ProxyService2/internal/domain"
@@ -270,9 +270,9 @@ func (c *CacheService) Stats() domain.CacheStats {
 		HitRate:       hitRate,
 		TotalKeys:     len(c.entries),
 		MemoryUsed:    c.memory,
-		MemoryUsedUI:  humanBytes(c.memory),
+		MemoryUsedUI:  humanBytesCache(c.memory),
 		MemoryLimit:   c.settings.MemoryLimitBytes,
-		MemoryLimitUI: humanBytes(c.settings.MemoryLimitBytes),
+		MemoryLimitUI: humanBytesCache(c.settings.MemoryLimitBytes),
 	}
 }
 
@@ -293,7 +293,7 @@ func (c *CacheService) Entries(limit int) []domain.CacheEntryView {
 			Status:    entry.status,
 			Hits:      entry.hits,
 			Size:      len(entry.body),
-			SizeHuman: humanBytes(int64(len(entry.body))),
+			SizeHuman: humanBytesCache(int64(len(entry.body))),
 			TTL:       ttl.Round(time.Second).String(),
 			Tags:      append([]string{}, entry.tags...),
 			ExpiresAt: entry.expiresAt,
@@ -324,7 +324,7 @@ func (c *CacheService) Snapshot(limit int) domain.CacheSnapshot {
 			Default3xxTTL:   settings.DefaultRule.TTL3xx.String(),
 			Default4xxTTL:   settings.DefaultRule.TTL4xx.String(),
 			Default5xxTTL:   settings.DefaultRule.TTL5xx.String(),
-			MemoryLimitText: humanBytes(settings.MemoryLimitBytes),
+			MemoryLimitText: humanBytesCache(settings.MemoryLimitBytes),
 		},
 	}
 }
@@ -340,8 +340,8 @@ func (c *CacheService) resolveRule(host, path string) domain.CacheRule {
 	for _, rule := range c.settings.Rules {
 		if len(rule.Domains) > 0 {
 			matched := false
-			for _, domain := range rule.Domains {
-				if strings.EqualFold(domain, host) {
+			for _, d := range rule.Domains {
+				if strings.EqualFold(d, host) {
 					matched = true
 					break
 				}
@@ -474,7 +474,7 @@ func cloneHeader(header http.Header) http.Header {
 	return result
 }
 
-func humanBytes(value int64) string {
+func humanBytesCache(value int64) string {
 	const unit = 1024
 	if value < unit {
 		return strconv.FormatInt(value, 10) + " B"

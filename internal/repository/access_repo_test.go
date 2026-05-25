@@ -1,4 +1,4 @@
-package access
+package repository
 
 import (
 	"ProxyService2/internal/domain"

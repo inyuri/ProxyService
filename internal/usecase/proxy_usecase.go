@@ -1,4 +1,4 @@
-package proxy
+package usecase
 
 import (
 	"ProxyService2/internal/config"
@@ -43,7 +43,7 @@ func (e *HTTPError) Error() string {
 	return e.Message
 }
 
-type Service struct {
+type ProxyUseCase struct {
 	store   ports.ConfigStore
 	access  ports.AccessService
 	rate    ports.RateLimiter
@@ -52,18 +52,18 @@ type Service struct {
 	client  *http.Client
 }
 
-func NewService(
+func NewProxyUseCase(
 	store ports.ConfigStore,
 	access ports.AccessService,
 	rate ports.RateLimiter,
 	cache ports.CacheService,
 	metrics ports.ObservabilityService,
 	client *http.Client,
-) *Service {
+) *ProxyUseCase {
 	if client == nil {
 		client = &http.Client{}
 	}
-	return &Service{
+	return &ProxyUseCase{
 		store:   store,
 		access:  access,
 		rate:    rate,
@@ -73,24 +73,24 @@ func NewService(
 	}
 }
 
-func (s *Service) CaptchaHeader() string {
-	return s.access.Settings().CaptchaHeader
+func (uc *ProxyUseCase) CaptchaHeader() string {
+	return uc.access.Settings().CaptchaHeader
 }
 
-func (s *Service) EvaluateAccess(clientIP, captchaValue string) domain.AccessDecision {
-	return s.access.Check(clientIP, captchaValue)
+func (uc *ProxyUseCase) EvaluateAccess(clientIP, captchaValue string) domain.AccessDecision {
+	return uc.access.Check(clientIP, captchaValue)
 }
 
-func (s *Service) AcquireRateLease(clientIP string, uploadHint int64, now time.Time) (*domain.RateLimitLease, *domain.RateLimitViolation) {
-	return s.rate.Acquire(clientIP, uploadHint, now)
+func (uc *ProxyUseCase) AcquireRateLease(clientIP string, uploadHint int64, now time.Time) (*domain.RateLimitLease, *domain.RateLimitViolation) {
+	return uc.rate.Acquire(clientIP, uploadHint, now)
 }
 
-func (s *Service) ReleaseRateLease(lease *domain.RateLimitLease, uploadedBytes, downloadedBytes int64) {
-	s.rate.Release(lease, uploadedBytes, downloadedBytes)
+func (uc *ProxyUseCase) ReleaseRateLease(lease *domain.RateLimitLease, uploadedBytes, downloadedBytes int64) {
+	uc.rate.Release(lease, uploadedBytes, downloadedBytes)
 }
 
-func (s *Service) Forward(request ForwardRequest) (ForwardResponse, error) {
-	cfg := s.store.Current()
+func (uc *ProxyUseCase) Forward(request ForwardRequest) (ForwardResponse, error) {
+	cfg := uc.store.Current()
 	targetURL, err := joinProxyTarget(cfg.Proxy.UpstreamBaseURL, request.RequestPath, request.RawQuery)
 	if err != nil {
 		return ForwardResponse{}, &HTTPError{StatusCode: http.StatusBadGateway, Message: err.Error()}
@@ -101,16 +101,16 @@ func (s *Service) Forward(request ForwardRequest) (ForwardResponse, error) {
 		Header: request.Header.Clone(),
 	}
 
-	_, shouldCache, _ := s.cache.ShouldUse(targetURL.Host, targetURL.Path, httpRequest)
+	_, shouldCache, _ := uc.cache.ShouldUse(targetURL.Host, targetURL.Path, httpRequest)
 	if shouldCache {
-		cacheKey := s.cache.BuildKey(request.Method, targetURL.String())
-		if cached, ok := s.cache.Get(cacheKey); ok {
+		cacheKey := uc.cache.BuildKey(request.Method, targetURL.String())
+		if cached, ok := uc.cache.Get(cacheKey); ok {
 			return ForwardResponse{
 				StatusCode:   cached.Status,
 				Header:       cached.Header,
 				Body:         cached.Body,
 				CacheStatus:  "HIT",
-				RequestBytes: maxInt64(request.ContentLength, int64(len(request.Body))),
+				RequestBytes: maxInt64Proxy(request.ContentLength, int64(len(request.Body))),
 			}, nil
 		}
 	}
@@ -127,9 +127,9 @@ func (s *Service) Forward(request ForwardRequest) (ForwardResponse, error) {
 	outboundRequest.Host = targetURL.Host
 
 	startedAt := time.Now()
-	response, err := s.client.Do(outboundRequest)
+	response, err := uc.client.Do(outboundRequest)
 	if err != nil {
-		s.metrics.UpdateUpstreamStatus(domain.UpstreamStatus{
+		uc.metrics.UpdateUpstreamStatus(domain.UpstreamStatus{
 			Name:      targetURL.Host,
 			URL:       cfg.Proxy.UpstreamBaseURL,
 			Healthy:   false,
@@ -146,7 +146,7 @@ func (s *Service) Forward(request ForwardRequest) (ForwardResponse, error) {
 		return ForwardResponse{}, &HTTPError{StatusCode: http.StatusBadGateway, Message: err.Error()}
 	}
 
-	s.metrics.UpdateUpstreamStatus(domain.UpstreamStatus{
+	uc.metrics.UpdateUpstreamStatus(domain.UpstreamStatus{
 		Name:      targetURL.Host,
 		URL:       cfg.Proxy.UpstreamBaseURL,
 		Healthy:   response.StatusCode < http.StatusInternalServerError,
@@ -159,13 +159,13 @@ func (s *Service) Forward(request ForwardRequest) (ForwardResponse, error) {
 		cacheStatus = "MISS"
 	}
 
-	cacheKey := s.cache.BuildKey(request.Method, targetURL.String())
+	cacheKey := uc.cache.BuildKey(request.Method, targetURL.String())
 	if response.StatusCode >= 200 && response.StatusCode < 400 &&
 		(request.Method != http.MethodGet && request.Method != http.MethodHead) {
-		s.cache.InvalidateForMutation(targetURL.Path)
+		uc.cache.InvalidateForMutation(targetURL.Path)
 	}
 	if shouldCache {
-		_ = s.cache.Store(targetURL.Host, targetURL.Path, cacheKey, response.StatusCode, response.Header, responseBody)
+		_ = uc.cache.Store(targetURL.Host, targetURL.Path, cacheKey, response.StatusCode, response.Header, responseBody)
 	}
 
 	return ForwardResponse{
@@ -177,12 +177,12 @@ func (s *Service) Forward(request ForwardRequest) (ForwardResponse, error) {
 	}, nil
 }
 
-func (s *Service) RunUpstreamChecks(ctx context.Context) {
-	ticker := time.NewTicker(config.ParseDurationOrDefault(s.store.Current().Monitoring.UpstreamCheckInterval, 30*time.Second))
+func (uc *ProxyUseCase) RunUpstreamChecks(ctx context.Context) {
+	ticker := time.NewTicker(config.ParseDurationOrDefault(uc.store.Current().Monitoring.UpstreamCheckInterval, 30*time.Second))
 	defer ticker.Stop()
 
 	for {
-		s.CheckUpstream()
+		uc.CheckUpstream()
 		select {
 		case <-ctx.Done():
 			return
@@ -191,12 +191,12 @@ func (s *Service) RunUpstreamChecks(ctx context.Context) {
 	}
 }
 
-func (s *Service) CheckUpstream() {
-	cfg := s.store.Current()
+func (uc *ProxyUseCase) CheckUpstream() {
+	cfg := uc.store.Current()
 	timeout := config.ParseDurationOrDefault(cfg.Proxy.Timeout, 15*time.Second)
 	target, err := url.Parse(cfg.Proxy.UpstreamBaseURL)
 	if err != nil {
-		s.metrics.UpdateUpstreamStatus(domain.UpstreamStatus{
+		uc.metrics.UpdateUpstreamStatus(domain.UpstreamStatus{
 			Name:      "upstream",
 			URL:       cfg.Proxy.UpstreamBaseURL,
 			Healthy:   false,
@@ -212,7 +212,7 @@ func (s *Service) CheckUpstream() {
 
 	startedAt := time.Now()
 	request, _ := http.NewRequestWithContext(ctx, http.MethodHead, target.String(), nil)
-	response, err := s.client.Do(request)
+	response, err := uc.client.Do(request)
 	status := domain.UpstreamStatus{
 		Name:      target.Host,
 		URL:       target.String(),
@@ -230,7 +230,7 @@ func (s *Service) CheckUpstream() {
 		}
 		status.Errors = 1
 	}
-	s.metrics.UpdateUpstreamStatus(status)
+	uc.metrics.UpdateUpstreamStatus(status)
 }
 
 func joinProxyTarget(baseURL, requestPath, rawQuery string) (*url.URL, error) {
@@ -252,7 +252,7 @@ func singleJoiningSlash(a, b string) string {
 
 func copyRequestHeaders(dst, src http.Header) {
 	for key, values := range src {
-		if isHopHeader(key) {
+		if isProxyHopHeader(key) {
 			continue
 		}
 		for _, value := range values {
@@ -261,7 +261,7 @@ func copyRequestHeaders(dst, src http.Header) {
 	}
 }
 
-func isHopHeader(key string) bool {
+func isProxyHopHeader(key string) bool {
 	switch strings.ToLower(key) {
 	case "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade":
 		return true
@@ -270,7 +270,7 @@ func isHopHeader(key string) bool {
 	}
 }
 
-func maxInt64(value, fallback int64) int64 {
+func maxInt64Proxy(value, fallback int64) int64 {
 	if value >= 0 {
 		return value
 	}
