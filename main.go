@@ -1,3 +1,8 @@
+// @title           Proxy Service API
+// @version         1.0
+// @description     Reverse proxy with IP access control, rate limiting and caching.
+// @BasePath        /
+
 package main
 
 import (
