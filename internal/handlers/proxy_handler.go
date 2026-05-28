@@ -19,6 +19,15 @@ func NewProxyHandler(uc *usecase.ProxyUseCase) *ProxyHandler {
 }
 
 func (h *ProxyHandler) Proxy(c *gin.Context) {
+	h.forward(c, c.Param("path"))
+}
+
+// ProxyNoRoute is used by the NoRoute handler to proxy any unmatched path.
+func (h *ProxyHandler) ProxyNoRoute(c *gin.Context) {
+	h.forward(c, c.Request.URL.Path)
+}
+
+func (h *ProxyHandler) forward(c *gin.Context, path string) {
 	requestBody, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -29,7 +38,7 @@ func (h *ProxyHandler) Proxy(c *gin.Context) {
 	response, err := h.uc.Forward(usecase.ForwardRequest{
 		Context:       c.Request.Context(),
 		Method:        c.Request.Method,
-		RequestPath:   c.Param("path"),
+		RequestPath:   path,
 		RawQuery:      c.Request.URL.RawQuery,
 		Header:        c.Request.Header,
 		Body:          requestBody,

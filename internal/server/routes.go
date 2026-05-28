@@ -5,7 +5,9 @@ import (
 	"ProxyService2/internal/ports"
 	"ProxyService2/internal/server/middleware"
 	"ProxyService2/internal/usecase"
+	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	swaggerfiles "github.com/swaggo/files"
@@ -71,4 +73,14 @@ func registerRoutes(
 	}
 
 	engine.Any("/proxy/*path", proxyH.Proxy)
+
+	// Forward any /api/* paths that don't match the admin /api/v1/* group to the upstream.
+	engine.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api/") && !strings.HasPrefix(path, "/api/v1/") {
+			proxyH.ProxyNoRoute(c)
+			return
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+	})
 }
